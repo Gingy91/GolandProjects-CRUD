@@ -24,14 +24,13 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Ошибка JSON", http.StatusBadRequest)
 		return
-
 	}
+
 	task := Task{Task: req.Task, IsDone: req.IsDone}
 	DB.Create(&task)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(task)
-	fmt.Fprintln(w, "Task обновлен")
-
 }
 
 func PatchHandler(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +53,6 @@ func PatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Обновляем поля задачи, если они переданы в запросе
 	if req.Task != "" {
 		task.Task = req.Task
 	}
@@ -62,7 +60,6 @@ func PatchHandler(w http.ResponseWriter, r *http.Request) {
 
 	DB.Save(&task)
 
-	// Возвращаем обновленную сущность в виде JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(task)
 }
@@ -81,11 +78,15 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	DB.Delete(&task)
-
-	// Возвращаем сообщение об успешном удалении
+	if result := DB.Delete(&task); result.Error != nil {
+		http.Error(w, "Ошибка при удалении", http.StatusInternalServerError)
+		return
+	}
+	//Возвращает задачу и была ошибка в нем почему в начале не удалял и просто задача шла
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Задача успешно удалена")
 }
+
 func main() {
 	InitDB()
 	DB.AutoMigrate(&Task{})
@@ -94,7 +95,7 @@ func main() {
 	router.HandleFunc("/api/tasks", PostHandler).Methods("POST")
 	router.HandleFunc("/api/tasks", GetHandler).Methods("GET")
 	router.HandleFunc("/api/tasks/{id}", PatchHandler).Methods("PATCH")
-	router.HandleFunc("/api/tasks/", DeleteHandler).Methods("DELETE")
-	fmt.Println("Сервер запущен на http://localhost:8080")
+	router.HandleFunc("/api/tasks/{id}", DeleteHandler).Methods("DELETE")
+	// Также и здесь забыл поставить id в delete и просто не было ответа от json
 	http.ListenAndServe(":8080", router)
 }
